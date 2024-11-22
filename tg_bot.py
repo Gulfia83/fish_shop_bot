@@ -9,7 +9,7 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, \
 
 from strapi import get_products, get_product, get_or_create_cart, \
     create_cart_product, add_cart_product_to_cart, get_cart_by_id, \
-    get_cart_product, delete_cart_product
+    get_cart_product, delete_cart_product, get_or_create_client
 
 
 logger = logging.getLogger(__name__)
@@ -94,7 +94,7 @@ def handle_description(update: Updater,
         db.set('product_id', '')
         cart_id = get_or_create_cart(strapi_api_token, str(user_id))
         cart_product_id = create_cart_product(strapi_api_token, product_id)['data']['documentId']
-        add_cart_product_to_cart(strapi_api_token,cart_id, cart_product_id)
+        add_cart_product_to_cart(strapi_api_token, cart_id, cart_product_id)
         query.message.reply_text(
             'Добавлено в корзину'
         )
@@ -102,6 +102,7 @@ def handle_description(update: Updater,
 
     if query.data == 'menu':
         start(update, context, strapi_api_token)
+        return 'HANDLE_MENU'
 
     if query.data == 'show_cart':
         user_id = query.from_user.id
@@ -123,6 +124,7 @@ def handle_description(update: Updater,
             )
         reply_text += f'Ваш заказ на сумму {total_sum} руб.'
         keyboard.append([InlineKeyboardButton('В меню', callback_data='menu')])
+        keyboard.append([InlineKeyboardButton('Оплатить', callback_data='payment')])
         reply_markup = InlineKeyboardMarkup(keyboard)
         context.bot.send_message(
             chat_id=query.from_user.id,
@@ -141,10 +143,42 @@ def handle_cart(update: Updater,
     if query.data == 'menu':
         start(update, context, strapi_api_token)
         return 'HANDLE_MENU'
+    if query.data == 'payment':
+        context.bot.send_message(
+            chat_id=query.from_user.id,
+            text='Для согласования оплаты укажите Ваш email'
+        )
+        return 'WAITING_EMAIL'
     else:
         cart_product_id = query.data
         delete_cart_product(strapi_api_token, cart_product_id)
+        query.message.reply_text(
+            'Товар удален'
+        )
         return 'HANDLE_CART'
+
+
+def handle_email(update: Updater,
+                 context: CallbackContext,
+                 strapi_api_token):
+
+    user_id = update.effective_chat.id
+    cart_id = get_or_create_cart(strapi_api_token, str(user_id))
+    if update.message:
+        email = update.message.text
+        update.message.reply_text(
+            text=f'Вы прислали мне эту почту {email}'
+        )
+        get_or_create_client(
+            strapi_api_token,
+            str(user_id),
+            email,
+            cart_id
+        )
+        update.message.reply_text(
+            'Заказ оформлен'
+        )
+    return 'HANDLE_MENU'
 
 
 def get_database_connection(redis_db_host, redis_db_port):
@@ -182,7 +216,9 @@ def handle_users_reply(update,
                                       db=db),
         'HANDLE_CART': partial(handle_cart,
                                strapi_api_token=strapi_api_token,
-                               db=db)
+                               db=db),
+        'WAITING_EMAIL': partial(handle_email,
+                                 strapi_api_token=strapi_api_token),
     }
     state_handler = states_functions[user_state]
 

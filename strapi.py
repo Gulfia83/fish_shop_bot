@@ -122,15 +122,46 @@ def add_cart_product_to_cart(strapi_api_token, cart_id, cart_product_id):
         'Authorization': f'bearer {strapi_api_token}',
     }
     data = {
-        "data": {
-            "cart_products": {
-                "connect": [cart_product_id],
+        'data': {
+            'cart_products': {
+                'connect': [cart_product_id],
             },
         }
     }
     response = requests.put(url_put, headers=headers, json=data)
     response.raise_for_status()
     return response.json()
+
+
+def get_or_create_client(strapi_api_token, user_id, email, cart_id):
+    url = 'http://localhost:1337/api/clients'
+    params = {
+        'filters[tg_id][$eq]': user_id
+    }
+    headers = {
+        'Authorization': f'Bearer {strapi_api_token}',
+        'Content-Type': 'application/json'
+    }
+    response = requests.get(url, params=params, headers=headers)
+    response.raise_for_status()
+    if len(response.json()['data']) == 0:
+        url = 'http://localhost:1337/api/clients'
+        headers = {
+            'Authorization': f'bearer {strapi_api_token}',
+        }
+
+        data = {
+            'data': {
+                'email': email,
+                'tg_id': user_id,
+                'carts': {
+                    'connect': [cart_id],
+                },
+            }
+        }
+        response = requests.post(url, headers=headers, json=data)
+        response.raise_for_status()
+        return response.json()
 
 
 if __name__ == '__main__':
