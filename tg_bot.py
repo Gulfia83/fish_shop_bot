@@ -9,7 +9,7 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, \
 
 from strapi import get_products, get_product, get_or_create_cart, \
     create_cart_product, add_cart_product_to_cart, get_cart_by_id, \
-    get_cart_product
+    get_cart_product, delete_cart_product
 
 
 logger = logging.getLogger(__name__)
@@ -108,6 +108,7 @@ def handle_description(update: Updater,
         cart_products = get_cart_by_id(strapi_api_token, user_id)
         reply_text = 'Ваши товары: \n'
         total_sum = 0
+        keyboard = []
         for cart_product in cart_products:
             cart_product_id = cart_product['documentId']
             cart_product = get_cart_product(strapi_api_token, cart_product_id)
@@ -116,16 +117,35 @@ def handle_description(update: Updater,
             price = cart_product['data']['product']['price']
             reply_text += f'{title} - {quantity} кг по цене {price} руб. за кг \n'
             total_sum += quantity * price
+            keyboard.append(
+                [InlineKeyboardButton(f'Убрать {title}',
+                                      callback_data=cart_product_id)]
+            )
         reply_text += f'Ваш заказ на сумму {total_sum} руб.'
-        keyboard = [
-            [InlineKeyboardButton('В меню', callback_data='menu')],
-        ]
+        keyboard.append([InlineKeyboardButton('В меню', callback_data='menu')])
         reply_markup = InlineKeyboardMarkup(keyboard)
         context.bot.send_message(
             chat_id=query.from_user.id,
             text=reply_text,
             reply_markup=reply_markup
         )
+        return 'HANDLE_CART'
+
+
+def handle_cart(update: Updater,
+                context: CallbackContext,
+                strapi_api_token,
+                db):
+    query = update.callback_query
+    query.answer()
+    if query.data == 'menu':
+        start(update, context, strapi_api_token)
+        return 'HANDLE_MENU'
+    else:
+        cart_product_id = query.data
+        delete_cart_product(strapi_api_token, cart_product_id)
+        return 'HANDLE_CART'
+
 
 def get_database_connection(redis_db_host, redis_db_port):
     global _database
@@ -159,7 +179,10 @@ def handle_users_reply(update,
                                db=db),
         'HANDLE_DESCRIPTION': partial(handle_description,
                                       strapi_api_token=strapi_api_token,
-                                      db=db)
+                                      db=db),
+        'HANDLE_CART': partial(handle_cart,
+                               strapi_api_token=strapi_api_token,
+                               db=db)
     }
     state_handler = states_functions[user_state]
 

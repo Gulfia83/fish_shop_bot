@@ -106,6 +106,16 @@ def get_cart_product(strapi_api_token, cart_product_id):
     return response.json()
 
 
+def delete_cart_product(strapi_api_token, cart_product_id):
+    url = f'http://localhost:1337/api/cart-products/{cart_product_id}'
+    headers = {
+        'Authorization': f'bearer {strapi_api_token}',
+    }
+    response = requests.delete(url, headers=headers)
+    response.raise_for_status()
+    return response.json()
+
+
 def add_cart_product_to_cart(strapi_api_token, cart_id, cart_product_id):
     url_put = f'http://localhost:1337/api/carts/{cart_id}'
     headers = {
