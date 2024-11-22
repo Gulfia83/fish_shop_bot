@@ -8,7 +8,8 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, \
       CallbackContext, CallbackQueryHandler
 
 from strapi import get_products, get_product, get_or_create_cart, \
-    create_cart_product, add_cart_product_to_cart
+    create_cart_product, add_cart_product_to_cart, get_cart_by_id, \
+    get_cart_product
 
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,6 @@ def start(update: Updater, context: CallbackContext, strapi_api_token):
         product['title'],
         callback_data=product['documentId']
     )] for product in products]
-    keyboard.append([InlineKeyboardButton('Моя корзина', callback_data='show_cart')])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     if update.message:
@@ -98,14 +98,34 @@ def handle_description(update: Updater,
         query.message.reply_text(
             'Добавлено в корзину'
         )
-        start(update, context, strapi_api_token)
-        return 'HANDLE_MENU'
+        return 'HANDLE_DESCRIPTION'
 
     if query.data == 'menu':
         start(update, context, strapi_api_token)
 
-        return 'HANDLE_MENU'
-
+    if query.data == 'show_cart':
+        user_id = query.from_user.id
+        cart_products = get_cart_by_id(strapi_api_token, user_id)
+        reply_text = 'Ваши товары: \n'
+        total_sum = 0
+        for cart_product in cart_products:
+            cart_product_id = cart_product['documentId']
+            cart_product = get_cart_product(strapi_api_token, cart_product_id)
+            title = cart_product['data']['product']['title']
+            quantity = cart_product['data']['quantity']
+            price = cart_product['data']['product']['price']
+            reply_text += f'{title} - {quantity} кг по цене {price} руб. за кг \n'
+            total_sum += quantity * price
+        reply_text += f'Ваш заказ на сумму {total_sum} руб.'
+        keyboard = [
+            [InlineKeyboardButton('В меню', callback_data='menu')],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        context.bot.send_message(
+            chat_id=query.from_user.id,
+            text=reply_text,
+            reply_markup=reply_markup
+        )
 
 def get_database_connection(redis_db_host, redis_db_port):
     global _database

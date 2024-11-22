@@ -103,7 +103,7 @@ def get_cart_product(strapi_api_token, cart_product_id):
     
     response = requests.get(url_post, params=params, headers=headers)
     response.raise_for_status()
-    print(response.json())
+    return response.json()
 
 
 def add_cart_product_to_cart(strapi_api_token, cart_id, cart_product_id):
