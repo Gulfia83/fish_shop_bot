@@ -51,7 +51,10 @@ def start(update: Updater, context: CallbackContext, strapi_api_token):
     return 'HANDLE_MENU'
 
 
-def handle_menu(update: Updater, context: CallbackContext, strapi_api_token, db):
+def handle_menu(update: Updater,
+                context: CallbackContext,
+                strapi_api_token,
+                db):
     query = update.callback_query
     query.answer()
 
@@ -64,7 +67,8 @@ def handle_menu(update: Updater, context: CallbackContext, strapi_api_token, db)
 
     keyboard = [
         [InlineKeyboardButton('В меню', callback_data='menu')],
-        [InlineKeyboardButton('Добавить в корзину', callback_data='add_to_cart')],
+        [InlineKeyboardButton('Добавить в корзину',
+                              callback_data='add_to_cart')],
         [InlineKeyboardButton('Моя корзина', callback_data='show_cart')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -82,6 +86,38 @@ def handle_menu(update: Updater, context: CallbackContext, strapi_api_token, db)
     return 'HANDLE_DESCRIPTION'
 
 
+def show_cart(update: Updater,
+              context: CallbackContext,
+              strapi_api_token,
+              user_id):
+    cart_products = get_cart_by_id(strapi_api_token, user_id)
+    reply_text = 'Ваши товары: \n'
+    total_sum = 0
+    keyboard = []
+    for cart_product in cart_products:
+        cart_product_id = cart_product['documentId']
+        cart_product = get_cart_product(strapi_api_token, cart_product_id)
+        title = cart_product['data']['product']['title']
+        quantity = cart_product['data']['quantity']
+        price = cart_product['data']['product']['price']
+        reply_text += f'{title} - {quantity} кг по цене {price} руб. за кг \n'
+        total_sum += quantity * price
+        keyboard.append(
+            [InlineKeyboardButton(f'Убрать {title}',
+                                  callback_data=cart_product_id)]
+        )
+    reply_text += f'Ваш заказ на сумму {total_sum} руб.'
+    keyboard.append([InlineKeyboardButton('В меню', callback_data='menu')])
+    keyboard.append([InlineKeyboardButton('Оплатить',
+                                          callback_data='payment')])
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    context.bot.send_message(
+        chat_id=update.effective_user.id,
+        text=reply_text,
+        reply_markup=reply_markup
+    )
+
+
 def handle_description(update: Updater,
                        context: CallbackContext,
                        strapi_api_token,
@@ -93,7 +129,8 @@ def handle_description(update: Updater,
         product_id = db.get('product_id').decode('utf-8')
         db.set('product_id', '')
         cart_id = get_or_create_cart(strapi_api_token, str(user_id))
-        cart_product_id = create_cart_product(strapi_api_token, product_id)['data']['documentId']
+        cart_product_id = create_cart_product(strapi_api_token,
+                                              product_id)['data']['documentId']
         add_cart_product_to_cart(strapi_api_token, cart_id, cart_product_id)
         query.message.reply_text(
             'Добавлено в корзину'
@@ -106,31 +143,7 @@ def handle_description(update: Updater,
 
     if query.data == 'show_cart':
         user_id = query.from_user.id
-        cart_products = get_cart_by_id(strapi_api_token, user_id)
-        reply_text = 'Ваши товары: \n'
-        total_sum = 0
-        keyboard = []
-        for cart_product in cart_products:
-            cart_product_id = cart_product['documentId']
-            cart_product = get_cart_product(strapi_api_token, cart_product_id)
-            title = cart_product['data']['product']['title']
-            quantity = cart_product['data']['quantity']
-            price = cart_product['data']['product']['price']
-            reply_text += f'{title} - {quantity} кг по цене {price} руб. за кг \n'
-            total_sum += quantity * price
-            keyboard.append(
-                [InlineKeyboardButton(f'Убрать {title}',
-                                      callback_data=cart_product_id)]
-            )
-        reply_text += f'Ваш заказ на сумму {total_sum} руб.'
-        keyboard.append([InlineKeyboardButton('В меню', callback_data='menu')])
-        keyboard.append([InlineKeyboardButton('Оплатить', callback_data='payment')])
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        context.bot.send_message(
-            chat_id=query.from_user.id,
-            text=reply_text,
-            reply_markup=reply_markup
-        )
+        show_cart(update, context, strapi_api_token, user_id)
         return 'HANDLE_CART'
 
 
@@ -154,30 +167,47 @@ def handle_cart(update: Updater,
         query.message.reply_text(
             'Товар удален'
         )
+        show_cart(context, update, strapi_api_token, query.from_user.id)
         return 'HANDLE_CART'
 
 
 def handle_email(update: Updater,
                  context: CallbackContext,
                  strapi_api_token):
-
     user_id = update.effective_chat.id
     cart_id = get_or_create_cart(strapi_api_token, str(user_id))
     if update.message:
         email = update.message.text
-        update.message.reply_text(
-            text=f'Вы прислали мне эту почту {email}'
-        )
         get_or_create_client(
             strapi_api_token,
             str(user_id),
             email,
             cart_id
         )
-        update.message.reply_text(
-            'Заказ оформлен'
-        )
-    return 'HANDLE_MENU'
+        text = f'Вы прислали мне эту почту {email}'
+        keyboard = [
+                [InlineKeyboardButton('Верно', callback_data='Верно')],
+                [InlineKeyboardButton('Неверно', callback_data='Неверно')],
+            ]
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    context.bot.send_message(chat_id=update.effective_user.id,
+                             text=text,
+                             reply_markup=reply_markup)    
+
+    return 'HANDLE_CLIENT'
+
+
+def handle_client(update: Updater,
+                 context: CallbackContext):
+    query = update.callback_query
+    query.answer()
+    if query.data == 'Верно':
+        query.message.reply_text('Заказ оформлен')
+        return 'START'
+    if query.data == 'Неверно':
+        query.message.reply_text('Ничего страшного, введите email снова')
+        return 'WAITING_EMAIL'
 
 
 def get_database_connection(redis_db_host, redis_db_port):
@@ -217,6 +247,7 @@ def handle_users_reply(update,
                                strapi_api_token=strapi_api_token),
         'WAITING_EMAIL': partial(handle_email,
                                  strapi_api_token=strapi_api_token),
+        'HANDLE_CLIENT': handle_client
     }
     state_handler = states_functions[user_state]
 
