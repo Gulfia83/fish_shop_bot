@@ -1,8 +1,6 @@
 import requests
 from io import BytesIO
 
-from environs import Env
-
 
 def get_products(strapi_api_token):
     products_url = 'http://localhost:1337/api/products'
@@ -162,14 +160,3 @@ def get_or_create_client(strapi_api_token, user_id, email, cart_id):
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
         return response.json()
-
-
-if __name__ == '__main__':
-    env = Env()
-    env.read_env()
-    strapi_api_token = env('STRAPI_API_TOKEN')
-    user_id = '1011004829'
-    cart_products = get_cart_by_id(strapi_api_token, user_id)
-    for cart_product in cart_products:
-        cart_product_id = cart_product['documentId']
-        print(get_cart_product(strapi_api_token, cart_product_id))
