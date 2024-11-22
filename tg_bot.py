@@ -34,6 +34,7 @@ def start(update: Updater, context: CallbackContext, strapi_api_token):
         product['title'],
         callback_data=product['documentId']
     )] for product in products]
+    keyboard.append([InlineKeyboardButton('Моя корзина', callback_data='show_cart')])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     if update.message:
@@ -62,8 +63,9 @@ def handle_menu(update: Updater, context: CallbackContext, strapi_api_token, db)
     db.set('product_id', query.data)
 
     keyboard = [
-        [InlineKeyboardButton('Назад', callback_data='Назад')],
+        [InlineKeyboardButton('В меню', callback_data='menu')],
         [InlineKeyboardButton('Добавить в корзину', callback_data='add_to_cart')],
+        [InlineKeyboardButton('Моя корзина', callback_data='show_cart')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -99,7 +101,7 @@ def handle_description(update: Updater,
         start(update, context, strapi_api_token)
         return 'HANDLE_MENU'
 
-    if query.data == 'Назад':
+    if query.data == 'menu':
         start(update, context, strapi_api_token)
 
         return 'HANDLE_MENU'
