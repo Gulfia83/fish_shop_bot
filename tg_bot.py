@@ -136,8 +136,7 @@ def handle_description(update: Updater,
 
 def handle_cart(update: Updater,
                 context: CallbackContext,
-                strapi_api_token,
-                db):
+                strapi_api_token):
     query = update.callback_query
     query.answer()
     if query.data == 'menu':
@@ -215,8 +214,7 @@ def handle_users_reply(update,
                                       strapi_api_token=strapi_api_token,
                                       db=db),
         'HANDLE_CART': partial(handle_cart,
-                               strapi_api_token=strapi_api_token,
-                               db=db),
+                               strapi_api_token=strapi_api_token),
         'WAITING_EMAIL': partial(handle_email,
                                  strapi_api_token=strapi_api_token),
     }
