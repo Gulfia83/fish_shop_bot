@@ -7,9 +7,9 @@ from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, \
       CallbackContext, CallbackQueryHandler
 
-from strapi import get_products, get_product, get_or_create_cart, \
+from strapi import get_products, get_product, create_cart, \
     create_cart_product, add_cart_product_to_cart, get_cart_by_id, \
-    get_cart_product, delete_cart_product, get_or_create_client
+    get_cart_product, delete_cart_product, get_client, create_client
 
 
 logger = logging.getLogger(__name__)
@@ -29,8 +29,11 @@ class TelegramLogsHandler(logging.Handler):
         self.tg_bot.send_message(chat_id=self.chat_id, text=log_entry)
 
 
-def start(update: Updater, context: CallbackContext, strapi_api_token):
-    products = get_products(strapi_api_token)
+def start(update: Updater,
+          context: CallbackContext,
+          strapi_api_token,
+          strapi_url):
+    products = get_products(strapi_api_token, strapi_url)
     keyboard = [[InlineKeyboardButton(
         product['title'],
         callback_data=product['documentId']
@@ -54,12 +57,13 @@ def start(update: Updater, context: CallbackContext, strapi_api_token):
 def handle_menu(update: Updater,
                 context: CallbackContext,
                 strapi_api_token,
+                strapi_url,
                 db):
     query = update.callback_query
     query.answer()
 
     product_id = query.data
-    product, image_data = get_product(strapi_api_token, product_id)
+    product, image_data = get_product(strapi_api_token, product_id, strapi_url)
     text = f'''{product['title']} ({product['price']} руб. за кг)\n
     {product['description']}'''
 
@@ -89,14 +93,18 @@ def handle_menu(update: Updater,
 def show_cart(update: Updater,
               context: CallbackContext,
               strapi_api_token,
+              strapi_url,
               user_id):
-    cart_products = get_cart_by_id(strapi_api_token, user_id)
+    cart_products = get_cart_by_id(strapi_api_token,
+                                   strapi_url, user_id)['cart_products']
     reply_text = 'Ваши товары: \n'
     total_sum = 0
     keyboard = []
     for cart_product in cart_products:
         cart_product_id = cart_product['documentId']
-        cart_product = get_cart_product(strapi_api_token, cart_product_id)
+        cart_product = get_cart_product(strapi_api_token,
+                                        strapi_url,
+                                        cart_product_id)
         title = cart_product['data']['product']['title']
         quantity = cart_product['data']['quantity']
         price = cart_product['data']['product']['price']
@@ -121,6 +129,7 @@ def show_cart(update: Updater,
 def handle_description(update: Updater,
                        context: CallbackContext,
                        strapi_api_token,
+                       strapi_url,
                        db):
     query = update.callback_query
     query.answer()
@@ -128,10 +137,20 @@ def handle_description(update: Updater,
         user_id = query.from_user.id
         product_id = db.get('product_id').decode('utf-8')
         db.set('product_id', '')
-        cart_id = get_or_create_cart(strapi_api_token, str(user_id))
+        cart_id = get_cart_by_id(strapi_api_token,
+                                 strapi_url,
+                                 str(user_id))['documentId']
+        if not cart_id:
+            cart_id = create_cart(strapi_api_token,
+                                  strapi_url,
+                                  str(user_id))['documentId']
         cart_product_id = create_cart_product(strapi_api_token,
+                                              strapi_url,
                                               product_id)['data']['documentId']
-        add_cart_product_to_cart(strapi_api_token, cart_id, cart_product_id)
+        add_cart_product_to_cart(strapi_api_token,
+                                 strapi_url,
+                                 cart_id,
+                                 cart_product_id)
         query.message.reply_text(
             'Добавлено в корзину'
         )
@@ -143,13 +162,14 @@ def handle_description(update: Updater,
 
     if query.data == 'show_cart':
         user_id = query.from_user.id
-        show_cart(update, context, strapi_api_token, user_id)
+        show_cart(update, context, strapi_api_token, strapi_url, user_id)
         return 'HANDLE_CART'
 
 
 def handle_cart(update: Updater,
                 context: CallbackContext,
-                strapi_api_token):
+                strapi_api_token,
+                strapi_url):
     query = update.callback_query
     query.answer()
     if query.data == 'menu':
@@ -163,27 +183,37 @@ def handle_cart(update: Updater,
         return 'WAITING_EMAIL'
     else:
         cart_product_id = query.data
-        delete_cart_product(strapi_api_token, cart_product_id)
+        delete_cart_product(strapi_api_token, strapi_url, cart_product_id)
         query.message.reply_text(
             'Товар удален'
         )
-        show_cart(context, update, strapi_api_token, query.from_user.id)
+        show_cart(context,
+                  update,
+                  strapi_api_token,
+                  strapi_url,
+                  query.from_user.id)
         return 'HANDLE_CART'
 
 
 def handle_email(update: Updater,
                  context: CallbackContext,
-                 strapi_api_token):
+                 strapi_api_token,
+                 strapi_url):
     user_id = update.effective_chat.id
-    cart_id = get_or_create_cart(strapi_api_token, str(user_id))
+    cart_id = get_cart_by_id(strapi_api_token, strapi_url, str(user_id))
     if update.message:
         email = update.message.text
-        get_or_create_client(
+        client = get_client(
             strapi_api_token,
+            strapi_url,
             str(user_id),
-            email,
-            cart_id
         )
+        if not client:
+            create_client(strapi_api_token,
+                          strapi_url,
+                          user_id,
+                          email,
+                          cart_id)
         text = f'Вы прислали мне эту почту {email}'
         keyboard = [
                 [InlineKeyboardButton('Верно', callback_data='Верно')],
@@ -220,7 +250,8 @@ def get_database_connection(redis_db_host, redis_db_port):
 def handle_users_reply(update,
                        context,
                        db,
-                       strapi_api_token):
+                       strapi_api_token,
+                       strapi_url):
     if update.message:
         user_reply = update.message.text
         chat_id = update.message.chat_id
@@ -236,17 +267,22 @@ def handle_users_reply(update,
 
     states_functions = {
         'START': partial(start,
-                         strapi_api_token=strapi_api_token),
+                         strapi_api_token=strapi_api_token,
+                         strapi_url=strapi_url),
         'HANDLE_MENU': partial(handle_menu,
                                strapi_api_token=strapi_api_token,
+                               strapi_url=strapi_url,
                                db=db),
         'HANDLE_DESCRIPTION': partial(handle_description,
                                       strapi_api_token=strapi_api_token,
+                                      strapi_url=strapi_url,
                                       db=db),
         'HANDLE_CART': partial(handle_cart,
-                               strapi_api_token=strapi_api_token),
+                               strapi_api_token=strapi_api_token,
+                               strapi_url=strapi_url),
         'WAITING_EMAIL': partial(handle_email,
-                                 strapi_api_token=strapi_api_token),
+                                 strapi_api_token=strapi_api_token,
+                                 strapi_url=strapi_url),
         'HANDLE_CLIENT': handle_client
     }
     state_handler = states_functions[user_state]
@@ -266,6 +302,7 @@ def main() -> None:
     redis_db_host = env.str('REDIS_DB_HOST')
     redis_db_port = env.str('REDIS_DB_PORT')
     strapi_api_token = env.str('STRAPI_API_TOKEN')
+    strapi_url = env.str('STRAPI_URL')
     bot = Bot(tg_bot_token)
     db = get_database_connection(redis_db_host, redis_db_port)
 
@@ -281,15 +318,18 @@ def main() -> None:
     dispatcher.add_handler(
         CallbackQueryHandler(partial(handle_users_reply,
                                      db=db,
-                                     strapi_api_token=strapi_api_token)))
+                                     strapi_api_token=strapi_api_token,
+                                     strapi_url=strapi_url)))
     dispatcher.add_handler(
         MessageHandler(Filters.text, partial(handle_users_reply,
                                              db=db,
-                                             strapi_api_token=strapi_api_token)))
+                                             strapi_api_token=strapi_api_token,
+                                             strapi_url=strapi_url)))
     dispatcher.add_handler(
         CommandHandler('start', partial(handle_users_reply,
                                         db=db,
-                                        strapi_api_token=strapi_api_token)))
+                                        strapi_api_token=strapi_api_token,
+                                        strapi_url=strapi_url)))
 
     updater.start_polling()
 
