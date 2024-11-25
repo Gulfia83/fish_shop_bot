@@ -2,34 +2,40 @@
 
 Бот онлайн магазина продажи морепродуктов
 
-## Пример работы бота
-
-[fish_shop_bot](https://github.com/user-attachments/assets/84e4e9d1-2372-49e9-9d0c-5ed1cbcc4a78)
-
 ## Установка
-1. Установите Python и создайте виртуальное окружение, активируйте его:
+1. Установите Python и создайте виртуальное окружение, активируйте его.
 
 2. Установите необходимые зависимости с помощью `pip`:
     ```sh
     pip install -r requirements.txt
 
-3. Этот проект использует базу данных Redis. Создайте и подключите ваш экземпляр на [redis website](https://app.redislabs.com/)
-4. Получите токен для вашего телеграм-бота и для вашего сообщества в ВК.
-5. Создайте файл `.env` и поместите в него следующие переменные окружения:
-    ```env
-    TG_BOT_TOKEN='токен телеграм бота'
-    REDIS_DB_HOST='адрес хоста вашего сервера базы данных Redis'
-    REDIS_DB_PORT='номер порта сервера базы данных Redis'
-    STRAPI_API_TOKEN='токен API сервера Strapi'
-    ```
-6. Запустите redis сервер
+## Переменные окреужения
 
-7. Запустите Strapi проект
+Создайте файл `.env` и поместите в него следующие переменные окружения:
+    ```env
+    TG_BOT_TOKEN='токен телеграм бота' - получить у [BotFather]('@BotFather')
+    REDIS_DB_HOST='адрес хоста вашего сервера базы данных Redis' ('localhost')
+    REDIS_DB_PORT='номер порта сервера базы данных Redis' ('6379')
+    STRAPI_API_TOKEN='токен API сервера Strapi' - получить в настройках админ панели Strapi
+    STRAPI_URL='адрес Strapi сервера'. По умолчанию 'http://localhost:1337'
+    ```
+## Запуск
+
+Запустите redis сервер
+
+```sh
+cd ./redis
+redis-server.exe
+```
+Запустите Strapi проект
 
 ```sh
 npm run develop
 ```
-8. Запустите бота
+Запустите бота
 ```sh
 python tg_bot.py
 ```
+## Пример работы бота
+
+[fish_shop_bot](https://github.com/user-attachments/assets/84e4e9d1-2372-49e9-9d0c-5ed1cbcc4a78)
