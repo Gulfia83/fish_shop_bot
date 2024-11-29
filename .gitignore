@@ -130,6 +130,15 @@ build
 .strapi-updater.json
 .strapi-cloud.json
 .venv
+types
+src
+public
+database
+package.json
+package-lock.json
+tsconfig.json
+.strapi-updater.json
+favicon.png
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
