@@ -9,7 +9,24 @@
     ```sh
     pip install -r requirements.txt
 
-## Переменные окреужения
+## Установка Strapi
+
+Node.js должен быть установлен на компьютере.
+Установите Strapi
+```sh
+npx create-strapi@latest
+```
+Перейдите в директорию проекта strapi и настройте админ-панель
+```sh
+npm run build
+```
+В админ-панели нужно создать следующие модели:
+1. Product с полями title, description, picture, price
+2. Cart с полями tg_id
+3. CartProduct с полями quantity и связать ее с моделями Product и Cart
+4. Client с полями tg_id, email и связать с моделью Cart
+
+## Переменные окружения
 
 Создайте файл `.env` и поместите в него следующие переменные окружения:
     ```env
